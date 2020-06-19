@@ -5,4 +5,7 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface IMessageRepository  extends MongoRepository<Message, String> {
+    Message findByOriginPingId(String originPingId);
+
+    Message findByMessage(String message);
 }

@@ -1,27 +1,51 @@
 package com.pingpong.app1;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pingpong.repository.message.Message;
 import com.pingpong.repository.message.MessageService;
-import com.pingpong.repository.message.Type;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import com.rabbitmq.client.Channel;
+import com.rabbitmq.client.Connection;
+import com.rabbitmq.client.ConnectionFactory;
+import com.rabbitmq.client.DeliverCallback;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import javax.annotation.PostConstruct;
+import java.io.IOException;
+import java.util.concurrent.TimeoutException;
+
 @Service
+@Slf4j
 public class PongConsumer {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(PongConsumer.class);
-
     private final MessageService messageService;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     public PongConsumer(MessageService messageService) {
         this.messageService = messageService;
     }
 
-    @RabbitListener(queues = "PONG")
-    public void receive(String pong) {
-        Message saved = messageService.save(new Message("teste", Type.PING));
-        LOGGER.info("PONG: {}", pong);
+    @PostConstruct
+    public void receive() throws IOException, TimeoutException {
+        log.info("Iniciando método de receber PONG");
+        ConnectionFactory factory = new ConnectionFactory();
+        factory.setHost("localhost");
+        Connection connection = factory.newConnection();
+
+        Channel channel = connection.createChannel();
+        channel.queueDeclare("PONG", true, false, false, null);
+
+        DeliverCallback deliverCallback = (consumerTag, delivery) -> {
+            log.info("PONG RECEBIDO");
+            String message = new String(delivery.getBody(), "UTF-8");
+            Message originPing = this.messageService.findByMessage(message);
+            log.info("PONG: {}", message);
+            log.info("PING: {}", originPing.getMessage());
+        };
+        channel.basicConsume("PONG", true, deliverCallback, consumerTag -> {});
+
     }
 }
